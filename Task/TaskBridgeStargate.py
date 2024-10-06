@@ -1,3 +1,4 @@
+import asyncio
 import os
 import random
 import time
@@ -19,71 +20,39 @@ class TaskBridgeStargate(ConnectWeb3):
         super().__init__(pWeb3)
         self.mAccountEVM = pAccountEVM
 
-    async def DoTask(self):
+    async def DoTask(self, pRPCTo):
         l_FilePath = os.getcwd() + Cons.strLoggingPath.format(
             str(self.mAccountEVM.mGroup) + "_" + str(self.mAccountEVM.GetAddress()))
 
         try:
-            l_RoutePath = [
-                Cons.RPC.OP_RPC,
-                Cons.RPC.ARB_RPC,
-                Cons.RPC.SCROLL_RPC,
-                Cons.RPC.LINEA_RPC,
-                Cons.RPC.BASE_RPC,
-            ]
+            l_FromChain = Cons.LayerZero_json["ChainInfo"][self.mWeb3.provider.endpoint_uri]["name"]
+            l_ToChain = Cons.LayerZero_json["ChainInfo"][pRPCTo]["name"]
+            # -------------- Proxy -----------------------------------------
+            l_ProxyAddress = Cons.g_Data_Proxy[1] if self.mAccountEVM.mGroup not in Cons.g_Data_Proxy else \
+                Cons.g_Data_Proxy[self.mAccountEVM.mGroup]
 
-            l_RandomAmountRpc = random.randint(3, 4)
-            l_RoutePath = [l_rpc for l_rpc in l_RoutePath if l_rpc != self.mWeb3.provider.endpoint_uri][:l_RandomAmountRpc]
-            random.shuffle(l_RoutePath)
+            l_GasPrice = int(await self.mWeb3.eth.gas_price*random.uniform(1.05, 1.1))
 
-            for i in range(0, len(l_RoutePath)):
-                l_FromChain = Cons.LayerZero_json["ChainInfo"][self.mWeb3.provider.endpoint_uri]["name"]
-                l_ToChain = Cons.LayerZero_json["ChainInfo"][l_RoutePath[i]]["name"]
-                # -------------- Proxy -----------------------------------------
-                l_ProxyAddress = Cons.g_Data_Proxy[1] if self.mAccountEVM.mGroup not in Cons.g_Data_Proxy else \
-                    Cons.g_Data_Proxy[self.mAccountEVM.mGroup]
-                http_proxy = {
-                    "http": l_ProxyAddress,
-                    "https": l_ProxyAddress
-                }
+            l_QuantityToBridge = (await self.mAccountEVM.GetBalanceETH() - random.uniform(0.0002, 0.0005)) / (random.uniform(1.01, 1.03))
+            l_Stargate = LayerZero.Bridge.StargateBridge(self.mWeb3, l_GasPrice, 0)
 
-                # Tạo một session với proxy
-                session = requests.Session()
-                session.proxies.update(http_proxy)
+            l_TxnBridge, l_IsSuccessTXN = await l_Stargate.BridgeETH(self.mAccountEVM,
+                                               Cons.LayerZero_json["ChainInfo"][pRPCTo]["chainID"],
+                                               float(round(Web3.from_wei(l_QuantityToBridge, "ether"), random.randint(7, 10))))
+            if l_IsSuccessTXN:
+                l_TextToLog = f'\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeStargate - Account {self.mAccountEVM.GetAddress()}:' \
+                              f'\n => Bridge from {l_FromChain} to {l_ToChain}\n' \
+                              f'\n => {str(l_TxnBridge)}\n'
+                Logging.WriteLog(l_FilePath, l_TextToLog)
 
-                l_GasPrice = int(await self.mWeb3.eth.gas_price*random.uniform(1.05, 1.1))
+            else:
+                l_TextToLog = f'\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeStargate - Account {self.mAccountEVM.GetAddress()}:' \
+                              f'\n => Bridge from {l_FromChain} to {l_ToChain}\n' \
+                              f'\n => Failed \n'
+                Logging.WriteLog(l_FilePath, l_TextToLog)
+            return l_TxnBridge, l_IsSuccessTXN
 
-                l_QuantityToBridge = (await self.mAccountEVM.GetBalanceETH() - random.uniform(0.0002, 0.0005)) / (random.uniform(1.01, 1.03))
-                l_Stargate = LayerZero.Bridge.StargateBridge(self.mWeb3, l_GasPrice, 0)
-
-                l_TxnBridge, l_IsSuccessTXN = await l_Stargate.BridgeETH(self.mAccountEVM,
-                                                   Cons.LayerZero_json["ChainInfo"][l_RoutePath[i]]["chainID"],
-                                                   float(round(Web3.from_wei(l_QuantityToBridge, "ether"), random.randint(7, 10))))
-                if l_IsSuccessTXN:
-                    l_NextChain = AsyncWeb3(AsyncWeb3.AsyncHTTPProvider(l_RoutePath[i], request_kwargs={'proxy': l_ProxyAddress, 'timeout': ClientTimeout(total=6000)}))
-
-                    self.mAccountEVM.mWeb3 = l_NextChain
-                    self.mWeb3 = l_NextChain
-
-                    l_IsBridgeSucess = await self.IsBridgeSucess(l_QuantityToBridge)
-                    if l_IsBridgeSucess:
-                        l_TextToLog = f'\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeStargate - Account {self.mAccountEVM.GetAddress()}:' \
-                                      f'\n => Bridge from {l_FromChain} to {l_ToChain}\n' \
-                                      f'\n => {str(l_TxnBridge)}\n'
-                        Logging.WriteLog(l_FilePath, l_TextToLog)
-                    else:
-                        l_TextToLog = f'\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeStargate - Account {self.mAccountEVM.GetAddress()}:' \
-                                      f'\n => Bridge from {l_FromChain} to {l_ToChain}\n' \
-                                      f'\n => Failed, "From" is sent but "To" not receive \n'
-                        Logging.WriteLog(l_FilePath, l_TextToLog)
-                        break
-                else:
-                    l_TextToLog = f'\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeStargate - Account {self.mAccountEVM.GetAddress()}:' \
-                                  f'\n => Bridge from {l_FromChain} to {l_ToChain}\n' \
-                                  f'\n => Failed \n'
-                    Logging.WriteLog(l_FilePath, l_TextToLog)
-                    break
-            time.sleep(random.randint(1, 10))
+            # time.sleep(random.randint(1, 10))
         except TimeoutError as t:
             l_TextToLog = f'\n\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeStargate: TimeoutError\n\n'
             Logging.WriteLog(l_FilePath, l_TextToLog)
@@ -99,6 +68,6 @@ class TaskBridgeStargate(ConnectWeb3):
                 return True
             else:
                 l_RetryTime = l_RetryTime + 1
-                time.sleep(10)
+                await asyncio.sleep(10)
 
         return False

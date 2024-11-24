@@ -11,10 +11,10 @@ from ThreadTask.AsyncDoTask import AsyncDoTask
 
 # Hàm khởi chạy tất cả các tác vụ không đồng bộ
 async def main():
-    l_FileProxy = FileProcessing("proxy.xlsx")
-    Cons.g_Data_Proxy = l_FileProxy.ReadDataProxyJSON()
+    # l_FileProxy = FileProcessing("proxy.xlsx")
+    # Cons.g_Data_Proxy = l_FileProxy.ReadDataProxyJSON()
 
-    l_FileKey = FileProcessing("key.xlsx")
+    l_FileKey = FileProcessing("key/1.xlsx")
 
     l_lstAccount = []
     l_lstAccount.extend(l_FileKey.ReadData())
@@ -28,6 +28,8 @@ async def main():
         group = i
 
         l_lstAccountFilter = list(filter(lambda acc: acc.mGroup == group, l_lstAccount))
+
+
 
         # Nhóm dữ liệu theo giá trị group
         if group not in groups_Account:

@@ -10,10 +10,11 @@ from aiohttp import ClientTimeout
 from typing_extensions import List
 from web3 import Web3, AsyncWeb3
 
+from CONSTANT import RPC, strLoggingPath, g_ProxyAddress
 from Include.Data import DataWallet
 from IncludeAsync.AccountEVM import AccountEVM
 from Logging import Logging
-import CONSTANT as Cons
+from Task.TaskBridgeJumper import TaskBridgeJumper
 from Task.TaskBridgeStargate import TaskBridgeStargate
 
 
@@ -23,7 +24,7 @@ class AsyncDoTask:
         self.mListAccount = pListAccount
         self.mDictAccTxnNumber = {}
     async def run(self):
-        random.shuffle(self.mListAccount)
+        # random.shuffle(self.mListAccount)
         await self.BrigdeStargate()
 
     async def BrigdeStargate(self):
@@ -31,12 +32,9 @@ class AsyncDoTask:
         while not l_IsAllAccReachTarget:
             for i in range(0, len(self.mListAccount)):
                 self.mListAccount[i].mAddress = Web3.to_checksum_address(self.mListAccount[i].mAddress)
-                l_FilePath = os.getcwd() + Cons.strLoggingPath.format(
+                l_FilePath = os.getcwd() + strLoggingPath.format(
                     str(self.mListAccount[i].mGroup) + "_" + str(self.mListAccount[i].mAddress))
                 try:
-                    l_ProxyAddress = Cons.g_Data_Proxy[1] if self.mListAccount[i].mGroup not in Cons.g_Data_Proxy else \
-                        Cons.g_Data_Proxy[self.mListAccount[i].mGroup]
-
                     l_RPC_From = await self.GetChainHaveBalance(self.mListAccount[i])
                     print(f"{self.mThreadName}: Wallet {self.mListAccount[i].mAddress}, RPC {l_RPC_From}")
 
@@ -45,23 +43,33 @@ class AsyncDoTask:
                         self.mDictAccTxnNumber[self.mListAccount[i].mAddress]["TargetTxnAmount"] = random.randint(10, 15)
                         self.mDictAccTxnNumber[self.mListAccount[i].mAddress]["CurrentTxnAmount"] = 0
                         self.mDictAccTxnNumber[self.mListAccount[i].mAddress]["IsDone"] = False
-
+                    else:
+                        if self.mDictAccTxnNumber[self.mListAccount[i].mAddress]["IsDone"]:
+                            continue
                     if l_RPC_From is not None:
                         l_RoutePath = [
-                            Cons.RPC.OP_RPC,
-                            Cons.RPC.ARB_RPC,
-                            Cons.RPC.SCROLL_RPC,
-                            Cons.RPC.LINEA_RPC,
-                            Cons.RPC.BASE_RPC,
+                            RPC.OP_RPC,
+                            RPC.ARB_RPC,
+                            RPC.SCROLL_RPC,
+                            RPC.LINEA_RPC,
+                            RPC.BASE_RPC,
                         ]
                         l_RoutePath = [l_rpc for l_rpc in l_RoutePath if l_rpc != l_RPC_From]
                         l_RPC_To = random.choice(l_RoutePath)
                         async with aiohttp.ClientSession() as session:
-                            l_Web3 = AsyncWeb3(AsyncWeb3.AsyncHTTPProvider(l_RPC_From, request_kwargs={'proxy': l_ProxyAddress}))
+                            l_Web3 = AsyncWeb3(AsyncWeb3.AsyncHTTPProvider(l_RPC_From, request_kwargs={'proxy': g_ProxyAddress}))
                             await l_Web3.provider.cache_async_session(session=session)
                             l_Account = AccountEVM(self.mListAccount[i].mPrivateKey, l_Web3, self.mListAccount[i].mGroup)
-                            l_TaskBridgeStargate = TaskBridgeStargate(l_Web3, l_Account)
-                            l_TxnBridge, l_IsSuccessTXN = await l_TaskBridgeStargate.DoTask(l_RPC_To)
+
+                            l_RandomeRate = random.randint(0, 100)
+
+                            if l_RandomeRate < 5:
+                                l_TaskBridgeStargate = TaskBridgeStargate(l_Web3, l_Account)
+                                l_TxnBridge, l_IsSuccessTXN = await l_TaskBridgeStargate.DoTask(l_RPC_To)
+                            else:
+                                l_TaskBridgeJumper = TaskBridgeJumper(l_Web3, l_Account)
+                                l_TxnBridge, l_IsSuccessTXN = await l_TaskBridgeJumper.DoTask(l_RPC_To)
+
                             if l_IsSuccessTXN:
                                 self.mDictAccTxnNumber[self.mListAccount[i].mAddress]["CurrentTxnAmount"] += 1
                     else:
@@ -85,35 +93,33 @@ class AsyncDoTask:
             await asyncio.sleep(l_RandomSleep)
 
     async def GetChainHaveBalance(self, pWallet: DataWallet):
-        l_FilePath = os.getcwd() + Cons.strLoggingPath.format(
+        l_FilePath = os.getcwd() + strLoggingPath.format(
             str(pWallet.mGroup) + "_" + str(pWallet.mAddress))
         try:
             # -------------- Proxy -----------------------------------------
-            l_ProxyAddress = Cons.g_Data_Proxy[1] if pWallet.mGroup not in Cons.g_Data_Proxy else \
-                Cons.g_Data_Proxy[pWallet.mGroup]
 
             async with aiohttp.ClientSession() as session:
                 l_web3_Base = AsyncWeb3(
-                    AsyncWeb3.AsyncHTTPProvider(Cons.RPC.BASE_RPC, request_kwargs={'proxy': l_ProxyAddress}))
+                    AsyncWeb3.AsyncHTTPProvider(RPC.BASE_RPC, request_kwargs={'proxy': g_ProxyAddress}))
                 await l_web3_Base.provider.cache_async_session(session=session)
                 l_bal_base = await l_web3_Base.eth.get_balance(pWallet.mAddress)
 
-                l_web3_OP = AsyncWeb3(AsyncWeb3.AsyncHTTPProvider(Cons.RPC.OP_RPC, request_kwargs={'proxy': l_ProxyAddress}))
+                l_web3_OP = AsyncWeb3(AsyncWeb3.AsyncHTTPProvider(RPC.OP_RPC, request_kwargs={'proxy': g_ProxyAddress}))
                 await l_web3_OP.provider.cache_async_session(session=session)
                 l_bal_OP = await l_web3_OP.eth.get_balance(pWallet.mAddress)
 
                 l_web3_Scroll = AsyncWeb3(
-                    AsyncWeb3.AsyncHTTPProvider(Cons.RPC.SCROLL_RPC, request_kwargs={'proxy': l_ProxyAddress}))
+                    AsyncWeb3.AsyncHTTPProvider(RPC.SCROLL_RPC, request_kwargs={'proxy': g_ProxyAddress}))
                 await l_web3_Scroll.provider.cache_async_session(session=session)
                 l_bal_Scroll = await l_web3_Scroll.eth.get_balance(pWallet.mAddress)
 
                 l_web3_arb = AsyncWeb3(
-                    AsyncWeb3.AsyncHTTPProvider(Cons.RPC.ARB_RPC, request_kwargs={'proxy': l_ProxyAddress}))
+                    AsyncWeb3.AsyncHTTPProvider(RPC.ARB_RPC, request_kwargs={'proxy': g_ProxyAddress}))
                 await l_web3_arb.provider.cache_async_session(session=session)
                 l_bal_arb = await l_web3_arb.eth.get_balance(pWallet.mAddress)
 
                 l_web3_Linea = AsyncWeb3(
-                    AsyncWeb3.AsyncHTTPProvider(Cons.RPC.LINEA_RPC, request_kwargs={'proxy': l_ProxyAddress}))
+                    AsyncWeb3.AsyncHTTPProvider(RPC.LINEA_RPC, request_kwargs={'proxy': g_ProxyAddress}))
                 await l_web3_Linea.provider.cache_async_session(session=session)
                 l_bal_Linea = await l_web3_Linea.eth.get_balance(pWallet.mAddress)
 

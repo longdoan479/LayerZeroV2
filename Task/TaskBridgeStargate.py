@@ -23,7 +23,8 @@ class TaskBridgeStargate(ConnectWeb3):
     async def DoTask(self, pRPCTo):
         l_FilePath = os.getcwd() + Cons.strLoggingPath.format(
             str(self.mAccountEVM.mGroup) + "_" + str(self.mAccountEVM.GetAddress()))
-
+        l_TxnBridge = ""
+        l_IsSuccessTXN = False
         try:
             l_FromChain = Cons.LayerZero_json["ChainInfo"][self.mWeb3.provider.endpoint_uri]["name"]
             l_ToChain = Cons.LayerZero_json["ChainInfo"][pRPCTo]["name"]
@@ -50,7 +51,6 @@ class TaskBridgeStargate(ConnectWeb3):
                               f'\n => Bridge from {l_FromChain} to {l_ToChain}\n' \
                               f'\n => Failed \n'
                 Logging.WriteLog(l_FilePath, l_TextToLog)
-            return l_TxnBridge, l_IsSuccessTXN
 
             # time.sleep(random.randint(1, 10))
         except TimeoutError as t:
@@ -59,6 +59,7 @@ class TaskBridgeStargate(ConnectWeb3):
         except Exception as e:
             l_TextToLog = f'\n\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeStargate: {type(e).__name__} - {e}\n\n'
             Logging.WriteLog(l_FilePath, l_TextToLog)
+        return l_TxnBridge, l_IsSuccessTXN
 
     async def IsBridgeSucess(self, pQuantityBridge):
         l_RetryTime = 0

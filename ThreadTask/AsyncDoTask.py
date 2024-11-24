@@ -24,7 +24,7 @@ class AsyncDoTask:
         self.mListAccount = pListAccount
         self.mDictAccTxnNumber = {}
     async def run(self):
-        # random.shuffle(self.mListAccount)
+        random.shuffle(self.mListAccount)
         await self.BrigdeStargate()
 
     async def BrigdeStargate(self):
@@ -46,7 +46,10 @@ class AsyncDoTask:
                     else:
                         if self.mDictAccTxnNumber[self.mListAccount[i].mAddress]["IsDone"]:
                             continue
-                    if l_RPC_From is not None:
+
+                    if l_RPC_From is None:
+                        continue
+                    elif l_RPC_From != "":
                         l_RoutePath = [
                             RPC.OP_RPC,
                             RPC.ARB_RPC,
@@ -63,7 +66,7 @@ class AsyncDoTask:
 
                             l_RandomeRate = random.randint(0, 100)
 
-                            if l_RandomeRate < 5:
+                            if l_RandomeRate < 0:
                                 l_TaskBridgeStargate = TaskBridgeStargate(l_Web3, l_Account)
                                 l_TxnBridge, l_IsSuccessTXN = await l_TaskBridgeStargate.DoTask(l_RPC_To)
                             else:
@@ -91,6 +94,7 @@ class AsyncDoTask:
             l_RandomSleep = random.randint(900, 1800)
             print(f"{self.mThreadName}: => Sleeping for {l_RandomSleep}s before next round")
             await asyncio.sleep(l_RandomSleep)
+            random.shuffle(self.mListAccount)
 
     async def GetChainHaveBalance(self, pWallet: DataWallet):
         l_FilePath = os.getcwd() + strLoggingPath.format(
@@ -134,6 +138,8 @@ class AsyncDoTask:
 
                 if Web3.from_wei(l_DictValue[l_RPCHasBalance], "ether") > 0.005:
                     return l_RPCHasBalance.provider.endpoint_uri
+                else:
+                    return ""
         except TimeoutError as t:
             l_TextToLog = f'\n\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: ThreadDoTask.GetChainHaveBalance: TimeoutError\n\n'
             Logging.WriteLog(l_FilePath, l_TextToLog)

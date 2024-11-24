@@ -1,3 +1,5 @@
-start screen -S <name>
+screen -S L0
+cd EVM/LayerZero
 export PYTHONPATH="/root/EVM/BaseLibraryWeb3/"
+pip install -r requirements.txt
 python3 main.py

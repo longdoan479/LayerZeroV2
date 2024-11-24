@@ -19,7 +19,8 @@ class TaskBridgeJumper(ConnectWeb3):
 
     async def DoTask(self, pRPCTo):
         l_Filepath = os.getcwd() + strLoggingPath.format(str(self.mAccountEVM.mGroup) + "_" + str(self.mAccountEVM.GetAddress()))
-
+        l_TxnBridge = ""
+        l_IsSuccessTXN = False
         try:
             l_FromChain = gDictChainID[self.mWeb3.provider.endpoint_uri]["chainID"]
             l_ToChain = gDictChainID[pRPCTo]["chainID"]
@@ -44,8 +45,8 @@ class TaskBridgeJumper(ConnectWeb3):
                               f'\n => Bridge from {l_FromChain} to {l_ToChain}\n' \
                               f'\n => Failed \n'
                 Logging.WriteLog(l_Filepath, l_TextToLog)
-            return l_TxnBridge, l_IsSuccessTXN
 
         except Exception as e:
             l_TextToLog = f'\n\n{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: TaskBridgeJumper.DoTask: {type(e).__name__} - {e}\n\n'
             Logging.WriteLog(l_Filepath, l_TextToLog)
+        return l_TxnBridge, l_IsSuccessTXN
